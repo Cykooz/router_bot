@@ -2,3 +2,7 @@
 .*
 !/.gitignore
 !/.env.example
+!/.github
+!/.dockerignore
+/docker/arm64
+/docker/amd64
