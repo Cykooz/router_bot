@@ -7,6 +7,75 @@ use teloxide::prelude::*;
 use teloxide::utils::command::BotCommands;
 use wol::MacAddress;
 
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    dotenvy::dotenv().ok();
+    pretty_env_logger::init();
+
+    log::info!("Starting router bot...");
+
+    let config = Arc::new(Config::from_env());
+    let bot = Bot::from_env();
+
+    let handler = Update::filter_message()
+        .filter_command::<Command>()
+        .endpoint(answer);
+
+    Dispatcher::builder(bot, handler)
+        .dependencies(dptree::deps![config])
+        .enable_ctrlc_handler()
+        .build()
+        .dispatch()
+        .await;
+}
+
+#[derive(BotCommands, Clone)]
+#[command(
+    rename_rule = "lowercase",
+    description = "These commands are supported:"
+)]
+enum Command {
+    #[command(description = "display this text.")]
+    Help,
+    #[command(description = "send Wake-On-Lan packet.")]
+    Wol,
+}
+
+async fn answer(bot: Bot, msg: Message, cmd: Command, config: Arc<Config>) -> ResponseResult<()> {
+    match cmd {
+        Command::Help => {
+            bot.send_message(msg.chat.id, Command::descriptions().to_string())
+                .await?
+        }
+        Command::Wol => {
+            let (mac, ip) = match config.chats.get(&msg.chat.id) {
+                Some(config) => (config.mac_addr, config.ip_addr),
+                None => {
+                    bot.send_message(
+                        msg.chat.id,
+                        format!("No configuration found for chat {}", msg.chat.id),
+                    )
+                    .await?;
+                    return Ok(());
+                }
+            };
+
+            match send_wol(mac, ip) {
+                Ok(_) => {
+                    bot.send_message(msg.chat.id, format!("WOL packet sent to {mac} ({ip})"))
+                        .await?
+                }
+                Err(e) => {
+                    bot.send_message(msg.chat.id, format!("Failed to send WOL packet: {e}"))
+                        .await?
+                }
+            }
+        }
+    };
+
+    Ok(())
+}
+
 #[derive(Clone, Debug)]
 struct WolConfig {
     mac_addr: MacAddress,
@@ -71,75 +140,6 @@ fn parse_wol_config(val: &str) -> Result<WolConfig, String> {
     } else {
         Err("Expected <MAC>,<IP>".to_string())
     }
-}
-
-#[derive(BotCommands, Clone)]
-#[command(
-    rename_rule = "lowercase",
-    description = "These commands are supported:"
-)]
-enum Command {
-    #[command(description = "display this text.")]
-    Help,
-    #[command(description = "send Wake-On-Lan packet.")]
-    Wol,
-}
-
-#[tokio::main]
-async fn main() {
-    dotenvy::dotenv().ok();
-    pretty_env_logger::init();
-
-    log::info!("Starting router bot...");
-
-    let config = Arc::new(Config::from_env());
-    let bot = Bot::from_env();
-
-    let handler = Update::filter_message()
-        .filter_command::<Command>()
-        .endpoint(answer);
-
-    Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![config])
-        .enable_ctrlc_handler()
-        .build()
-        .dispatch()
-        .await;
-}
-
-async fn answer(bot: Bot, msg: Message, cmd: Command, config: Arc<Config>) -> ResponseResult<()> {
-    match cmd {
-        Command::Help => {
-            bot.send_message(msg.chat.id, Command::descriptions().to_string())
-                .await?
-        }
-        Command::Wol => {
-            let (mac, ip) = match config.chats.get(&msg.chat.id) {
-                Some(config) => (config.mac_addr, config.ip_addr),
-                None => {
-                    bot.send_message(
-                        msg.chat.id,
-                        format!("No configuration found for chat {}", msg.chat.id),
-                    )
-                    .await?;
-                    return Ok(());
-                }
-            };
-
-            match send_wol(mac, ip) {
-                Ok(_) => {
-                    bot.send_message(msg.chat.id, format!("WOL packet sent to {mac} ({ip})"))
-                        .await?
-                }
-                Err(e) => {
-                    bot.send_message(msg.chat.id, format!("Failed to send WOL packet: {e}"))
-                        .await?
-                }
-            }
-        }
-    };
-
-    Ok(())
 }
 
 fn send_wol(mac: MacAddress, ip: SocketAddr) -> Result<(), String> {
