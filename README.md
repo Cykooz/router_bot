@@ -18,19 +18,17 @@ A simple Telegram bot written in Rust that sends **Wake-On-Lan (WOL)** magic pac
 
 The bot is configured via environment variables.
 
-| Variable             | Description                                       | Example                                       |
-|----------------------|---------------------------------------------------|-----------------------------------------------|
-| `TELOXIDE_TOKEN`     | Your Telegram Bot API token.                      | `123456789:ABCdefGHIjklMNOpqrsTUVwxyZ`        |
-| `CHAT<id>`           | Per-chat WOL configuration: `<MAC>,<IP>[:PORT]`.  | `CHAT123456789=00:11:22:33:44:55,192.168.1.2` |
-| `LOG_LEVEL`          | Logging level (`debug`, `info`, `warn`, `error`). | `info`                                        |
-| `WITHOUT_ANSI_COLOR` | Disable ANSI colors in logs if set.               | `1`                                           |
+| Variable             | Description                                       | Example                                |
+|----------------------|---------------------------------------------------|----------------------------------------|
+| `TELOXIDE_TOKEN`     | Your Telegram Bot API token.                      | `123456789:ABCdefGHIjklMNOpqrsTUVwxyZ` |
+| `CHAT<id>`           | Per-chat MAC address of target device.            | `CHAT123456789=00:11:22:33:44:55`      |
+| `LOG_LEVEL`          | Logging level (`debug`, `info`, `warn`, `error`). | `info`                                 |
+| `WITHOUT_ANSI_COLOR` | Disable ANSI colors in logs if set.               | `1`                                    |
 
 ### Chat-specific Configuration Example
 
 If your Telegram Chat ID is `123456789`, you would set:
-`CHAT123456789=00:11:22:33:44:55,192.168.1.2`
-
-The bot defaults to port **9** if no port is specified in the IP address.
+`CHAT123456789=00:11:22:33:44:55`
 
 You can specify configuration for multiple chats.
 
@@ -55,13 +53,13 @@ Once the bot is running, you can use the following commands in Telegram:
 
 ## Example Scenario
 
-1. You have a PC at home with MAC address `00:11:22:33:44:55` and IP address `192.168.1.2`.
+1. You have a PC at home with MAC address `00:11:22:33:44:55`.
 2. You find your Telegram Chat ID (e.g., by using a bot like `@userinfobot`).
 3. You configure the environment:
    ```env
    TELOXIDE_TOKEN=your_token_here
-   CHAT123456789=00:11:22:33:44:55,192.168.1.2
+   CHAT123456789=00:11:22:33:44:55
    ```
 4. You start the bot.
 5. In your Telegram chat, you type `/wol`.
-6. The bot sends the magic packet and replies: `WOL packet sent to 00:11:22:33:44:55 (192.168.1.2)`.
+6. The bot sends the magic packet and replies: `WOL packet sent to 00:11:22:33:44:55`.

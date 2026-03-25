@@ -22,11 +22,7 @@ The bot relies on several environment variables for its operation:
 
 - `TELOXIDE_TOKEN`: The API token for your Telegram bot (obtained from @BotFather).
 - `CHAT<tg_chat_id>`: Per-chat configuration for WOL.
-  The value should be in the format `<MAC>,<IP>` (e.g., `CHAT123456789=00:11:22:33:44:55,192.168.1.2`).
-  Where:
-    - `MAC`: The MAC address of the target device (e.g., `00:11:22:33:44:55`).
-    - `IP`: The destination IP address or hostname for the magic packet.
-      If no port is specified, it defaults to port 9 (e.g., `192.168.1.2` or `192.168.1.10:9`).
+  The value should be a MAC address of the target device (e.g., `CHAT123456789=00:11:22:33:44:55`).
 - `LOG_LEVEL`: The logging level for the bot (e.g., `debug`, `info`, `warn`, `error`). Defaults to `info`.
 - `WITHOUT_ANSI_COLOR`: If set, disables ANSI color output in the logs.
 
