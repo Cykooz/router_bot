@@ -5,20 +5,32 @@ use std::sync::Arc;
 
 use teloxide::prelude::*;
 use teloxide::utils::command::BotCommands;
+use tracing::metadata::LevelFilter;
+use tracing::{error, info};
 use wol::MacAddress;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    dotenvy::dotenv().ok();
-    pretty_env_logger::init();
+    let log_level = get_from_env("LOG_LEVEL", Some(LevelFilter::INFO));
+    let with_ansi_color: bool = env::var("WITHOUT_ANSI_COLOR").is_err();
 
-    log::info!("Starting router bot...");
+    use tracing_subscriber::fmt::Subscriber;
+    use tracing_subscriber::util::SubscriberInitExt;
+    let builder = Subscriber::builder()
+        .with_max_level(log_level)
+        .with_target(false)
+        .with_ansi(with_ansi_color)
+        .without_time();
+    let subscriber = builder.finish();
+    subscriber.try_init().unwrap();
+
+    info!("Starting router bot...");
 
     let config = Arc::new(Config::from_env());
     let bot = Bot::from_env();
 
     if let Err(e) = bot.set_my_commands(Command::bot_commands()).await {
-        log::error!("Failed to set bot commands: {e}");
+        error!("Failed to set bot commands: {e}");
     }
 
     let handler = Update::filter_message()
@@ -67,7 +79,8 @@ async fn execute_wal_command(bot: Bot, msg: Message, config: Arc<Config>) -> Res
     };
 
     let (mac, ip) = (config.mac_addr, config.ip_addr);
-    match send_wol(mac, ip) {
+    let send_result = wol::send_magic_packet(mac, None, ip);
+    match send_result {
         Ok(_) => {
             let ip_port = ip.to_string();
             let ip = ip_port.split(':').next().unwrap_or(&ip_port);
@@ -81,6 +94,15 @@ async fn execute_wal_command(bot: Bot, msg: Message, config: Arc<Config>) -> Res
     }
 
     Ok(())
+}
+
+fn get_from_env<T: std::str::FromStr>(name: &str, default: Option<T>) -> T {
+    match env::var(name).ok() {
+        Some(v) => v
+            .parse()
+            .unwrap_or_else(|_| panic!("Invalid value for environment variable {name}: {v}.")),
+        None => default.unwrap_or_else(|| panic!("Environment variable {name} is not set.")),
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -117,10 +139,9 @@ impl Config {
                 let chat_id = match chat_id_str.parse::<i64>() {
                     Ok(id) => ChatId(id),
                     Err(_) => {
-                        log::error!(
+                        error!(
                             "Invalid chat ID in environment variable {}: {}",
-                            key,
-                            chat_id_str
+                            key, chat_id_str
                         );
                         continue;
                     }
@@ -131,7 +152,7 @@ impl Config {
                         chats.insert(chat_id, config);
                     }
                     Err(e) => {
-                        log::error!("Invalid configuration for {}: {}", key, e);
+                        error!("Invalid configuration for {}: {}", key, e);
                     }
                 }
             }
@@ -147,10 +168,6 @@ fn parse_wol_config(val: &str) -> Result<WolConfig, String> {
     } else {
         Err("Expected <MAC>,<IP>".to_string())
     }
-}
-
-fn send_wol(mac: MacAddress, ip: SocketAddr) -> Result<(), String> {
-    wol::send_magic_packet(mac, None, ip).map_err(|e| format!("WOL error: {e}"))
 }
 
 #[cfg(test)]

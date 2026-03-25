@@ -11,10 +11,9 @@ edition = "2024"
 [dependencies]
 teloxide = { version = "0.17.0", features = ["macros"] }
 wol = "0.5.0"
-dotenvy = "0.15.7"
 tokio = { version = "1.50.0", features = ["rt", "macros"] }
-pretty_env_logger = "0.5.0"
-log = "0.4.29"
+tracing = { version = "0.1", default-features = false }
+tracing-subscriber = { version = "0.3.22", default-features = false, features = ["fmt", "ansi"] }
 
 
 [profile.release]
@@ -22,4 +21,3 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
-panic = "abort"
