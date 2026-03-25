@@ -5,11 +5,28 @@ use std::sync::Arc;
 
 use teloxide::prelude::*;
 use teloxide::utils::command::BotCommands;
+use wol::MacAddress;
 
 #[derive(Clone, Debug)]
 struct WolConfig {
-    mac: String,
-    ip: String,
+    mac_addr: MacAddress,
+    ip_addr: SocketAddr,
+}
+
+impl WolConfig {
+    pub fn new(mac: &str, ip: &str) -> Result<Self, String> {
+        let mac_addr = mac
+            .parse::<MacAddress>()
+            .map_err(|e| format!("Invalid MAC address '{mac}': {e}"))?;
+        let ip_addr = ip
+            .parse::<SocketAddr>()
+            .or_else(|_| {
+                // If it's just an IP without port, default to port 9
+                format!("{ip}:9").parse::<SocketAddr>()
+            })
+            .map_err(|e| format!("Invalid IP address '{ip}': {e}"))?;
+        Ok(Self { mac_addr, ip_addr })
+    }
 }
 
 struct Config {
@@ -20,8 +37,7 @@ impl Config {
     fn from_env() -> Self {
         let mut chats = HashMap::new();
         for (key, value) in env::vars() {
-            if key.starts_with("CHAT") {
-                let chat_id_str = &key[4..];
+            if let Some(chat_id_str) = key.strip_prefix("CHAT") {
                 let chat_id = match chat_id_str.parse::<i64>() {
                     Ok(id) => ChatId(id),
                     Err(_) => {
@@ -51,10 +67,7 @@ impl Config {
 fn parse_wol_config(val: &str) -> Result<WolConfig, String> {
     let parts: Vec<&str> = val.split(',').collect();
     if parts.len() == 2 {
-        Ok(WolConfig {
-            mac: parts[0].trim().to_string(),
-            ip: parts[1].trim().to_string(),
-        })
+        WolConfig::new(parts[0].trim(), parts[1].trim())
     } else {
         Err("Expected <MAC>,<IP>".to_string())
     }
@@ -102,7 +115,7 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, config: Arc<Config>) -> Re
         }
         Command::Wol => {
             let (mac, ip) = match config.chats.get(&msg.chat.id) {
-                Some(config) => (config.mac.clone(), config.ip.clone()),
+                Some(config) => (config.mac_addr, config.ip_addr),
                 None => {
                     bot.send_message(
                         msg.chat.id,
@@ -113,7 +126,7 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, config: Arc<Config>) -> Re
                 }
             };
 
-            match send_wol(&mac, &ip) {
+            match send_wol(mac, ip) {
                 Ok(_) => {
                     bot.send_message(msg.chat.id, format!("WOL packet sent to {mac} ({ip})"))
                         .await?
@@ -129,20 +142,8 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, config: Arc<Config>) -> Re
     Ok(())
 }
 
-fn send_wol(mac: &str, ip: &str) -> Result<(), String> {
-    let mac_addr = mac
-        .parse::<wol::MacAddress>()
-        .map_err(|e| format!("Invalid MAC address: {e}"))?;
-    let dst_addr = ip
-        .parse::<SocketAddr>()
-        .or_else(|_| {
-            // If it's just an IP without port, default to port 9
-            format!("{ip}:9").parse::<SocketAddr>()
-        })
-        .map_err(|e| format!("Invalid IP address: {}", e))?;
-
-    wol::send_magic_packet(mac_addr, None, dst_addr).map_err(|e| format!("WOL error: {e}"))?;
-    Ok(())
+fn send_wol(mac: MacAddress, ip: SocketAddr) -> Result<(), String> {
+    wol::send_magic_packet(mac, None, ip).map_err(|e| format!("WOL error: {e}"))
 }
 
 #[cfg(test)]
@@ -154,15 +155,15 @@ mod tests {
     #[test]
     fn test_parse_wol_config_valid() {
         let config = parse_wol_config("AA:BB:CC:DD:EE:FF,10.0.0.255").unwrap();
-        assert_eq!(config.mac, "AA:BB:CC:DD:EE:FF");
-        assert_eq!(config.ip, "10.0.0.255");
+        assert_eq!(config.mac_addr, "AA:BB:CC:DD:EE:FF".parse().unwrap());
+        assert_eq!(config.ip_addr, "10.0.0.255:9".parse().unwrap());
     }
 
     #[test]
     fn test_parse_wol_config_with_spaces() {
         let config = parse_wol_config(" AA:BB:CC:DD:EE:FF , 10.0.0.1:9 ").unwrap();
-        assert_eq!(config.mac, "AA:BB:CC:DD:EE:FF");
-        assert_eq!(config.ip, "10.0.0.1:9");
+        assert_eq!(config.mac_addr, "AA:BB:CC:DD:EE:FF".parse().unwrap());
+        assert_eq!(config.ip_addr, "10.0.0.1:9".parse().unwrap());
     }
 
     #[test]
@@ -183,8 +184,8 @@ mod tests {
         let config = Config::from_env();
         assert_eq!(config.chats.len(), 1);
         let wol = config.chats.get(&ChatId(12345)).unwrap();
-        assert_eq!(wol.mac, "00:11:22:33:44:55");
-        assert_eq!(wol.ip, "192.168.1.10");
+        assert_eq!(wol.mac_addr, "00:11:22:33:44:55".parse().unwrap());
+        assert_eq!(wol.ip_addr, "192.168.1.10:9".parse().unwrap());
 
         unsafe {
             env::remove_var("CHAT12345");
