@@ -139,10 +139,7 @@ impl Config {
                 let chat_id = match chat_id_str.parse::<i64>() {
                     Ok(id) => ChatId(id),
                     Err(_) => {
-                        error!(
-                            "Invalid chat ID in environment variable {}: {}",
-                            key, chat_id_str
-                        );
+                        error!("Invalid chat ID in environment variable {key}: {chat_id_str}");
                         continue;
                     }
                 };
@@ -152,7 +149,7 @@ impl Config {
                         chats.insert(chat_id, config);
                     }
                     Err(e) => {
-                        error!("Invalid configuration for {}: {}", key, e);
+                        error!("Invalid configuration for {key}: {e}");
                     }
                 }
             }
