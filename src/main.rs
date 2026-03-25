@@ -2,7 +2,6 @@ use std::env;
 use std::net::SocketAddr;
 use teloxide::prelude::*;
 use teloxide::utils::command::BotCommands;
-use wol;
 
 #[derive(BotCommands, Clone)]
 #[command(
