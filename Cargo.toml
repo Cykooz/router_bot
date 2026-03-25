@@ -1,7 +1,12 @@
 [package]
 name = "router_bot"
 version = "0.1.0"
+description = "A simple Telegram bot for a router that sends WoL packets to specified computers on the local network."
+authors = ["Kirill Kuzminykh <cykooz@gmail.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Cykooz/router_bot"
 edition = "2024"
+
 
 [dependencies]
 teloxide = { version = "0.17.0", features = ["macros"] }

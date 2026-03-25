@@ -17,6 +17,10 @@ async fn main() {
     let config = Arc::new(Config::from_env());
     let bot = Bot::from_env();
 
+    if let Err(e) = bot.set_my_commands(Command::bot_commands()).await {
+        log::error!("Failed to set bot commands: {e}");
+    }
+
     let handler = Update::filter_message()
         .filter_command::<Command>()
         .endpoint(answer);
@@ -45,33 +49,36 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, config: Arc<Config>) -> Re
     match cmd {
         Command::Help => {
             bot.send_message(msg.chat.id, Command::descriptions().to_string())
-                .await?
+                .await?;
         }
-        Command::Wol => {
-            let (mac, ip) = match config.chats.get(&msg.chat.id) {
-                Some(config) => (config.mac_addr, config.ip_addr),
-                None => {
-                    bot.send_message(
-                        msg.chat.id,
-                        format!("No configuration found for chat {}", msg.chat.id),
-                    )
-                    .await?;
-                    return Ok(());
-                }
-            };
+        Command::Wol => execute_wal_command(bot, msg, config).await?,
+    }
+    Ok(())
+}
 
-            match send_wol(mac, ip) {
-                Ok(_) => {
-                    bot.send_message(msg.chat.id, format!("WOL packet sent to {mac} ({ip})"))
-                        .await?
-                }
-                Err(e) => {
-                    bot.send_message(msg.chat.id, format!("Failed to send WOL packet: {e}"))
-                        .await?
-                }
-            }
-        }
+async fn execute_wal_command(bot: Bot, msg: Message, config: Arc<Config>) -> ResponseResult<()> {
+    let Some(config) = config.chats.get(&msg.chat.id) else {
+        bot.send_message(
+            msg.chat.id,
+            format!("No configuration found for chat {}", msg.chat.id),
+        )
+        .await?;
+        return Ok(());
     };
+
+    let (mac, ip) = (config.mac_addr, config.ip_addr);
+    match send_wol(mac, ip) {
+        Ok(_) => {
+            let ip_port = ip.to_string();
+            let ip = ip_port.split(':').next().unwrap_or(&ip_port);
+            bot.send_message(msg.chat.id, format!("WOL packet sent to {mac} ({ip})"))
+                .await?;
+        }
+        Err(e) => {
+            bot.send_message(msg.chat.id, format!("Failed to send WOL packet: {e}"))
+                .await?;
+        }
+    }
 
     Ok(())
 }
